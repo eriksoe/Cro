@@ -18,16 +18,14 @@
 
 package cro;
 
-import java.lang.reflect.{Field,Modifier,AccessibleObject}
 import java.io.File
 import java.util.IdentityHashMap
-import scala.collection.mutable.{Map => MMap}
 
 import org.objectweb.asm.{ClassReader}
 import org.objectweb.asm.tree.{ClassNode}
 
 object Cro {
-  type ObjectState = MMap[(String,Class[_]), Object];
+  type ObjectState = ObjectAnalysis.ObjectState;
 
   def reopen[T <: AnyRef](subject:T, staticCls:Class[T]) : T = {
     assert(subject.asInstanceOf[T] != null);
@@ -43,66 +41,17 @@ object Cro {
     val classInput = cl.getResourceAsStream(classFileName)
 
     val toInclude = new IdentityHashMap[Object,ObjectState]()
-    collectFinalTree(subject, toInclude)
-    System.err.println("DB| included objects: "+toInclude.keySet)
+    ObjectAnalysis.collectFinalTree(subject, toInclude)
+    System.err.println("DB| included objects ("+toInclude.size+"): "+toInclude.keySet)
 
     val cr = new ClassReader(classInput)
     val replacement = new ClassNode()
     cr.accept(replacement, 0)
     System.err.println("DB| loaded replacement: "+replacement)
 
+    
+
     subject
-  }
-
-  def collectFinalTree(subject:Object, set:IdentityHashMap[Object,ObjectState]) {
-    if (subject==null) return;
-    if (set.containsKey(subject)) return;
-
-    val cls = subject.getClass
-    val fields = cls.getDeclaredFields
-
-    // Debugging:
-    System.err.println("DB| collectFinalTree("+subject+"): class="+cls.getName+" fields="+fields.length)
-    for (f <- fields) {
-      val mods = f.getModifiers
-       if ((mods & Modifier.STATIC) == 0) {
-	System.err.println("  field: "+f.getType+" "+f.getName+" "+
-			   (if ((mods & Modifier.FINAL) != 0) "final" else "non-final")+" "+
-			   (if ((mods & Modifier.STATIC) != 0) "static" else "non-static"))
-       }
-    }
-
-    try {
-    AccessibleObject.setAccessible(fields.asInstanceOf[Array[AccessibleObject]], true) } catch {
-      case _:SecurityException => return; // Field not accessible - exclude object
-    }
-
-    // Debugging:
-    for (f <- fields) {
-      val mods = f.getModifiers
-      if ((mods & Modifier.STATIC) == 0) {
-	System.err.println("  field value: "+f.getName+" = "+f.get(subject))
-      }
-    }
-
-    val fieldMap : ObjectState = MMap()
-    for (f <- fields;
-	 val mods = f.getModifiers;
-	 if ((mods & Modifier.STATIC) == 0))
-      {
-	if ((mods & Modifier.FINAL) == 0) return; // Object not worthy
-	val fieldValue = f.get(subject)
-	fieldMap += ((f.getName,f.getType) -> fieldValue)
-      }
-
-    // We now know that 'subject' is to be included. Recurse:
-    for (((_fname,ftype),fvalue) <- fieldMap;
-	 if (! ftype.isPrimitive))
-      {
-	collectFinalTree(fvalue, set)
-      }
-
-    set.put(subject,fieldMap)
   }
 
   def main(args:Array[String]) {
