@@ -1,0 +1,23 @@
+
+BENCHMARK SOURCE FILES:
+cat /dev/urandom | perl -pe 's/[\x00-\x1F\x7F-\xFF]//g' |head -1000000c > 1Mrnd-a
+cat /dev/urandom | perl -pe 's/[^\t\n\x20-\x7E]//g' |head -1000000c > 1Mrnd-b
+
+BENCHMARKING - using json.Lexer-derived lexer:
+
+ORIGINAL:
+/---- scala cro.TestLexer 1Mrnd-a
+1: 325190 tokens in 11587 ms  (= 28065.072926555622/s)
+2: 325190 tokens in 9717 ms  (= 33466.0903571061/s)
+3: 325190 tokens in 9548 ms  (= 34058.441558441555/s)
+4: 325190 tokens in 9606 ms  (= 33852.80033312513/s)
+5: 325190 tokens in 9421 ms  (= 34517.56713724658/s)
+\----
+/---- scala cro.TestLexer 1Mrnd-b
+1: 537742 tokens in 13040 ms  (= 41237.88343558282/s)
+2: 537742 tokens in 10799 ms  (= 49795.536623761465/s)
+3: 537742 tokens in 11241 ms  (= 47837.55893603772/s)
+4: 537742 tokens in 10984 ms  (= 48956.8463219228/s)
+5: 537742 tokens in 11110 ms  (= 48401.6201620162/s)
+\----
+

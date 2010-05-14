@@ -1,0 +1,27 @@
+		    CRO - Closure Reopening
+
+INITIAL GOAL: To partially-evaluate Scala's combinatorial parsers in
+order to improve performance significantly.
+
+INTERFACE: Cro is given a Scala closure and constructs a class/object
+(the "replacement object") with the same functionality, but with
+glue-layers and virtual method dispatching eliminated (as well as
+internal closure construction) - to the extent Cro is able to perform
+such optimizations safely.
+
+More specifically, Cro is given
+- an object 'subject'
+- a method (or an interface) which 'subject' implements;
+- a set 'span' of names of packages which determines which behaviour
+  may be eliminated/inlined.
+
+BENCHMARK: A simple parser written using scala.util.parsing.combinator.
+
+MEANS: Using org.objectweb.asm, the subject's class definition is read
+and analyzed.  Final fields (the actual classes of which are within
+'span') are subject to partial evaluation; accesses to such fields
+have known results, and the fields (if non-public) can therefore be
+eliminated.  Calls to the objects pointed to by final fields may be inlined.
+
+Inlining primarily happens by placing a suitably adapted copy of the
+method within the replacement object.
