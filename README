@@ -1,0 +1,23 @@
+		    CRO - Closure Reopening
+	(for improving performance of Java or Scala closures)
+		       © 2010 Erik Søe Sørensen
+
+Directory structure:
+
++-+ doc/	Look in here for more information.
+  |
+  + ext/	External dependencies (third-party .jar files we use)
+  |
+  + src/	The source code.
+    |
+    +- main/
+    |  |
+    |  +- scala/
+    |     |
+    |     +- cro/	Where the source code lives.
+    |
+    +- test/
+       |
+       +- scala/
+          |
+          +- cro/	Where the test code lives.
