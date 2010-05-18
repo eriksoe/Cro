@@ -21,8 +21,10 @@ package cro;
 import java.io.File
 import java.util.IdentityHashMap
 
-import org.objectweb.asm.{ClassReader}
-import org.objectweb.asm.tree.{ClassNode}
+import org.objectweb.asm.{ClassReader, Type=>AsmType}
+import org.objectweb.asm.tree.{ClassNode,MethodNode}
+
+import scala.collection.jcl.Conversions._
 
 object Cro {
   type ObjectState = ObjectAnalysis.ObjectState;
@@ -49,7 +51,14 @@ object Cro {
     cr.accept(replacement, 0)
     System.err.println("DB| loaded replacement: "+replacement)
 
-    
+    val methods = replacement.methods.asInstanceOf[java.util.List[MethodNode]]
+
+    for (m <- methods) {
+      val dfg = DataflowGraph.construct(m)
+      dfg.dump(m)
+    }
+
+    //replacement.accept(new org.objectweb.asm.util.TraceClassVisitor(new java.io.PrintWriter(System.err)))
 
     subject
   }

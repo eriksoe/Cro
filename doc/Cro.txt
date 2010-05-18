@@ -25,3 +25,23 @@ eliminated.  Calls to the objects pointed to by final fields may be inlined.
 
 Inlining primarily happens by placing a suitably adapted copy of the
 method within the replacement object.
+
+MAJOR COMPONENTS & TASKS:
+
+- Figuring out the graph of immutable object starting from the subject.
+  (ObjectAnalysis.scala)
+
+- Obtaining the class file corresponding to the (dynamic) class of the subject.
+  (Cro.scala)
+
+- Generic intra-method dataflow analysis.
+  (DataFlowGraph.scala)
+
+(- Determining which labels should be duplicated on dataflow join
+   information loss)
+
+- Code recreation which performs the following optimizations:
+  - replacing virtual calls on known immutable objects with private
+    calls on self.
+  - replacing constructor calls for which all parameters are known with...?
+
