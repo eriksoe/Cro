@@ -95,6 +95,7 @@ object DataflowGraph {
   /** Data source representing a phi-node: a join-point in the dataflow graph. */
   case class Join(label:Label) extends DataSrc {
     val srcs : ListBuffer[DataSrc] = new ListBuffer()
+    override def toString = "Join("+label+" / "+srcs+")"
   }
 
   /** Data source representing the second part of a long or double value. */
@@ -124,7 +125,7 @@ object DataflowGraph {
 
     val state = new State[DataSrc](method.maxLocals);
     val nodeDeps = new DataflowGraph();
-    var reachable : Boolean = false
+    var reachable : Boolean = true
 
     def push_double(value:DataSrc) : Unit = {
       state.push(value);
@@ -156,6 +157,20 @@ object DataflowGraph {
 	src +: res
       }
       res.toSeq
+    }
+
+    { // Set initial argument sources:
+      val argTypes = Type.getArgumentTypes(method.desc)
+      var pos = 0;
+      if ((method.access & Opcodes.ACC_STATIC) == 0) {
+	state.store(pos, new ArgSrc(0))
+	pos += 1;
+      }
+
+      for (i <- 1 to argTypes.length) {
+	state.store(pos, new ArgSrc(i))
+	pos += argTypes(i-1).getSize;
+      }
     }
 
     /** Return datasrc accumulator. */
