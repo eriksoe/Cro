@@ -24,7 +24,7 @@ import org.objectweb.asm.tree.{ClassNode, MethodNode, AbstractInsnNode,
 			       LineNumberNode
 			     }
 import org.objectweb.asm.{MethodVisitor, MethodAdapter,
-			  Attribute, Label,
+			  Attribute, Label, Type,
 			  Opcodes}
 import scala.collection.mutable.{ArrayStack, ArrayBuffer, ResizableArray,
 				 ListBuffer}
@@ -34,7 +34,7 @@ import Util.insnListAsIterable
 class DataflowGraph extends IdentityHashMap[AbstractInsnNode,Array[DataflowGraph.DataSrc]] {
   def dump(method:MethodNode) {
     for (ins <- method.instructions) {
-      System.out.print("* "+ins)
+      System.out.print("* "+ins.getOpcode+" "+ins)
       if (containsKey(ins)) {
 	System.out.print(" // ")
 	System.out.print(get(ins).mkString(", "))
@@ -67,6 +67,14 @@ object DataflowGraph {
       val stacksize = stack.size;
       stack.clear;
       for (i <- 0 until stacksize) stack.push(cleared_value);
+    }
+
+    def replace(f: T => T) {
+      for (i <- 0 until locals.length) locals(i) = f(locals(i));
+
+      val mapped_stack = (stack map f).toList.reverse;
+      stack.clear;
+      stack ++= mapped_stack
     }
 
     override def toString : String = "<locals="+locals.mkString(",")+"  stack="+stack.mkString(",")+">"
@@ -128,11 +136,47 @@ object DataflowGraph {
       state.pop
     }
 
+    def push_mixed(typ:Type, toPush:DataSrc) = typ.getSize match {
+      case 1 => state.push(toPush)
+      case 2 => push_double(toPush)
+    }
+
+    def pop_mixed(typ:Type) = typ.getSize match {
+      case 1 => state.pop()
+      case 2 => pop_double()
+    }
+
+    def pop_args(argTypes:Array[Type]) : Seq[DataSrc] = {
+      val res = new ListBuffer[DataSrc]();
+      for (argType <- argTypes.reverse) {
+	val src = if (argType.getSize == 1)
+	            state.pop
+		  else
+		    pop_double
+	src +: res
+      }
+      res.toSeq
+    }
+
+    /** Return datasrc accumulator. */
     val returnSrcs = new ListBuffer[DataSrc]();
+
     for (instruction <- method.instructions) {
+
+      if (! instruction.isInstanceOf[LabelNode])
+	assert(reachable);
+
       instruction match {
 	case ins:LabelNode => {
-	  state.clear{new Join(ins.getLabel)};
+	  if (! reachable) {
+	    state.clear{new Join(ins.getLabel)};
+	    reachable = true;
+	  } else {
+	    state.replace{old=>
+			  val join=new Join(ins.getLabel);
+			  join.srcs += old;
+			  join};
+	  }
 	}
 
 	case ins:InsnNode => {
@@ -312,44 +356,69 @@ object DataflowGraph {
 	case ins:FieldInsnNode => {
 	  ins.getOpcode match {
 	    case PUTSTATIC => { // Pop 1 mixed
-	      //TODO: Handle double-word fields!
-	      val (a)=(state.pop);
+	      val a = pop_mixed(Type.getType(ins.desc))
 	      nodeDeps.put(ins, Array(a))
 	    }
 
 	    case PUTFIELD => { // Pop 1 + 1 mixed
-	      //TODO: Handle double-word fields!
-	      val (a,b)=(state.pop, state.pop);
+	      val a = state.pop;
+	      val b = pop_mixed(Type.getType(ins.desc))
 	      nodeDeps.put(ins, Array(b,a))
 	    }
 
 	    case GETSTATIC => { // Push 1 mixed
-	      //TODO: Handle double-word fields!
-	      state.push(InsSrc(ins))
+	      push_mixed(Type.getType(ins.desc), InsSrc(ins))
 	    }
 
 	    case GETFIELD => { // Pop 1, push 1 mixed
-	      //TODO: Handle double-word fields!
-	      val (a)=(state.pop);
+	      val a = state.pop;
 	      nodeDeps.put(ins, Array(a))
-	      state.push(InsSrc(ins))
+	      push_mixed(Type.getType(ins.desc), InsSrc(ins))
 	    }
 	  }
 	}
 
-	/*
 	case ins:MethodInsnNode => {
 	  ins.getOpcode match {
-	    // INVOKEVIRTUAL; INVOKESPECIAL; INVOKESTATIC; INVOKEINTERFACE
-	  }
+	    case INVOKESTATIC => {
+	      val argTypes = Type.getArgumentTypes(ins.desc)
+	      val retType  = Type.getReturnType(ins.desc)
+	      val argSrcs = pop_args(argTypes)
+	      nodeDeps.put(ins, argSrcs.toArray)
+
+	      val resSrc = InsSrc(ins)
+	      if (retType.getSize==1)
+		state.push(resSrc)
+	      else
+		push_double(resSrc)
+	    }
+	    case INVOKEVIRTUAL | INVOKEINTERFACE | INVOKESPECIAL => {
+	      val argTypes = Type.getArgumentTypes(ins.desc)
+	      val retType  = Type.getReturnType(ins.desc)
+	      val argSrcs = pop_args(argTypes)
+	      val thisSrc = state.pop
+	      nodeDeps.put(ins, (List(thisSrc) ++ argSrcs).toArray)
+
+	      val resSrc = InsSrc(ins)
+	      if (retType.getSize==1)
+		state.push(resSrc)
+	      else
+		push_double(resSrc)
+	    }
+ 	  }
 	}
 
 	case ins:TypeInsnNode => {
 	  ins.getOpcode match {
-	    // NEW; ANEWARRAY; INSTANCEOF; CHECKCAST
-	  }
+	    case CHECKCAST | INSTANCEOF | ANEWARRAY => {
+	      val (a)=(state.pop);
+	      nodeDeps.put(ins, Array(a))
+	      state.push(InsSrc(ins))
+	    }
+	    case NEW =>
+	      state.push(InsSrc(ins))
+ 	  }
 	}
-	*/
 
 	case _:LineNumberNode => {}
       }//match instruction
