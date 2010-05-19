@@ -21,7 +21,7 @@ package cro;
 import java.io.File
 import java.util.IdentityHashMap
 
-import org.objectweb.asm.{ClassReader, Type=>AsmType}
+import org.objectweb.asm.{ClassReader, Type=>AsmType, Opcodes}
 import org.objectweb.asm.tree.{ClassNode,MethodNode}
 
 import scala.collection.jcl.Conversions._
@@ -53,12 +53,16 @@ object Cro {
 
     val methods = replacement.methods.asInstanceOf[java.util.List[MethodNode]]
 
-    for (m <- methods) {
-      val dfg = DataflowGraph.construct(m)
-      dfg.dump(m)
-    }
+    replacement.accept(new org.objectweb.asm.util.TraceClassVisitor(new java.io.PrintWriter(System.err)))
 
-    //replacement.accept(new org.objectweb.asm.util.TraceClassVisitor(new java.io.PrintWriter(System.err)))
+    for (m <- methods) {
+      if ((m.access & Opcodes.ACC_STATIC) == 0)
+	{
+	  System.out.println("/---- Method "+m.name+" "+m.desc+" ----")
+	  val dfg = DataflowGraph.construct(m)
+	  dfg.dump(m)
+	}
+    }
 
     subject
   }
